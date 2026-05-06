@@ -6,6 +6,9 @@ FlatVR is a Linux-focused project to let users play VR games from a flat screen 
 Early prototype.
 
 Current prototype supports:
+- Mouse/keyboard-driven virtual HMD + locomotion simulation.
+- JSON pose output in stdout.
+- Pose publishing to a local mmap-backed file (`/tmp/flatvr_pose.bin`) for bridge consumers.
 - Mouse-driven virtual HMD yaw/pitch.
 - Keyboard locomotion (WASD + Space/C).
 - JSON pose output at configurable tick-rate.
@@ -21,6 +24,11 @@ For your Bazzite environment, we are targeting:
 ## Quick start
 ```bash
 cargo run --release -- --tick-hz 90
+```
+
+Custom pose output file:
+```bash
+cargo run -- --pose-file /tmp/flatvr_pose.bin
 ```
 
 Optional config file:

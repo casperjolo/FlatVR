@@ -1,3 +1,4 @@
+use std::fs::{self, OpenOptions};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -5,6 +6,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
+use memmap2::MmapMut;
 use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
@@ -18,6 +20,10 @@ struct Cli {
     /// Target simulation tick-rate.
     #[arg(long, default_value_t = 90)]
     tick_hz: u64,
+
+    /// Output file used as shared-memory-like publisher.
+    #[arg(long, default_value = "/tmp/flatvr_pose.bin")]
+    pose_file: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +55,7 @@ struct InputState {
     down: bool,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[derive(Debug, Clone, Copy, Serialize)]
 struct Pose {
     x: f32,
@@ -80,6 +87,11 @@ fn main() -> anyhow::Result<()> {
     let mut pose = Pose::default();
     let mut input = InputState::default();
     let mut last_tick = Instant::now();
+    let mut pose_file = PosePublisher::new(&cli.pose_file)?;
+
+    println!("FlatVR prototype loop started. Press Esc to quit.");
+    println!("WASD move, Space/C up/down, mouse controls yaw/pitch.");
+    println!("Publishing pose to {}", cli.pose_file.display());
 
     println!("FlatVR prototype loop started. Press Esc to quit.");
     println!("WASD move, Space/Ctrl up/down, mouse controls yaw/pitch.");
@@ -87,6 +99,35 @@ fn main() -> anyhow::Result<()> {
     loop {
         while event::poll(Duration::from_millis(1))? {
             match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Char('w') => input.forward = true,
+                    KeyCode::Char('s') => input.back = true,
+                    KeyCode::Char('a') => input.left = true,
+                    KeyCode::Char('d') => input.right = true,
+                    KeyCode::Char(' ') => input.up = true,
+                    KeyCode::Char('c') => input.down = true,
+                    KeyCode::Esc => return Ok(()),
+                    _ => {}
+                },
+                Event::Key(key) if key.kind == KeyEventKind::Release => match key.code {
+                    KeyCode::Char('w') => input.forward = false,
+                    KeyCode::Char('s') => input.back = false,
+                    KeyCode::Char('a') => input.left = false,
+                    KeyCode::Char('d') => input.right = false,
+                    KeyCode::Char(' ') => input.up = false,
+                    KeyCode::Char('c') => input.down = false,
+                    _ => {}
+                },
+                Event::Mouse(mouse) => match mouse.kind {
+                    MouseEventKind::ScrollUp => pose.pitch = (pose.pitch + 0.03).clamp(-1.4, 1.4),
+                    MouseEventKind::ScrollDown => {
+                        pose.pitch = (pose.pitch - 0.03).clamp(-1.4, 1.4)
+                    }
+                    MouseEventKind::Moved => {
+                        pose.yaw += config.mouse_sensitivity_yaw;
+                    }
+                    _ => {}
+                },
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
                     match key.code {
                         KeyCode::Char('w') => input.forward = true,
@@ -125,6 +166,7 @@ fn main() -> anyhow::Result<()> {
         let dt = now.duration_since(last_tick).as_secs_f32();
         if dt >= tick_dt.as_secs_f32() {
             simulate(&mut pose, &input, &config, dt);
+            pose_file.publish(pose)?;
             println!("{}", serde_json::to_string(&pose)?);
             last_tick = now;
         }
@@ -175,5 +217,52 @@ fn load_config(path: Option<PathBuf>) -> anyhow::Result<Config> {
             Ok(config)
         }
         None => Ok(Config::default()),
+    }
+}
+
+struct PosePublisher {
+    map: MmapMut,
+}
+
+impl PosePublisher {
+    fn new(path: &PathBuf) -> anyhow::Result<Self> {
+        let file_len = 256;
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .read(true)
+            .write(true)
+            .open(path)
+            .with_context(|| format!("failed to open pose file {}", path.display()))?;
+        file.set_len(file_len)?;
+
+        let map = unsafe { MmapMut::map_mut(&file).context("failed to map pose file")? };
+        Ok(Self { map })
+    }
+
+    fn publish(&mut self, pose: Pose) -> anyhow::Result<()> {
+        let bytes = serde_json::to_vec(&pose)?;
+        let copy_len = bytes.len().min(self.map.len() - 1);
+        self.map[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        self.map[copy_len] = b'\n';
+        self.map[copy_len + 1..].fill(0);
+        self.map.flush()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forward_movement_changes_position() {
+        let mut pose = Pose::default();
+        let input = InputState {
+            forward: true,
+            ..Default::default()
+        };
+        simulate(&mut pose, &input, &Config::default(), 1.0);
+        assert!(pose.z > 0.0);
     }
 }
