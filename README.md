@@ -1,2 +1,42 @@
 # FlatVR
-A Modern NO-VR solution for those who want to play vr games using your PC and no Headset required.
+
+FlatVR is a Linux-focused project to let users play VR games from a flat screen with no physical headset or motion controllers.
+
+## Project status
+Early prototype.
+
+Current prototype supports:
+- Mouse-driven virtual HMD yaw/pitch.
+- Keyboard locomotion (WASD + Space/C).
+- JSON pose output at configurable tick-rate.
+
+This is the foundation for an OpenXR/SteamVR bridge layer that will make games think a headset is present.
+
+## Why this approach
+For your Bazzite environment, we are targeting:
+- Steam + SteamVR compatibility.
+- OpenXR-native bridge path first.
+- Linux-first tooling and launch scripts.
+
+## Quick start
+```bash
+cargo run --release -- --tick-hz 90
+```
+
+Optional config file:
+```bash
+cargo run -- --config flatvr.json
+```
+
+Example `flatvr.json`:
+```json
+{
+  "mouse_sensitivity_yaw": 0.003,
+  "mouse_sensitivity_pitch": 0.002,
+  "keyboard_speed_mps": 2.5,
+  "keyboard_vertical_speed_mps": 1.5
+}
+```
+
+## Next implementation steps
+See `docs/architecture.md` for the roadmap.
