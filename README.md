@@ -9,6 +9,9 @@ Current prototype supports:
 - Mouse/keyboard-driven virtual HMD + locomotion simulation.
 - JSON pose output in stdout.
 - Pose publishing to a local mmap-backed file (`/tmp/flatvr_pose.bin`) for bridge consumers.
+- Mouse-driven virtual HMD yaw/pitch.
+- Keyboard locomotion (WASD + Space/C).
+- JSON pose output at configurable tick-rate.
 
 This is the foundation for an OpenXR/SteamVR bridge layer that will make games think a headset is present.
 
@@ -43,3 +46,15 @@ cargo run --bin read_pose -- /tmp/flatvr_pose.bin
 ```
 
 The mmap packet is a fixed binary protocol with magic (`FLATVR01`), version, sequence, timestamp, then pose floats.
+Example `flatvr.json`:
+```json
+{
+  "mouse_sensitivity_yaw": 0.003,
+  "mouse_sensitivity_pitch": 0.002,
+  "keyboard_speed_mps": 2.5,
+  "keyboard_vertical_speed_mps": 1.5
+}
+```
+
+## Next implementation steps
+See `docs/architecture.md` for the roadmap.

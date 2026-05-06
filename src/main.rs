@@ -1,4 +1,5 @@
 use std::fs::{self, OpenOptions};
+use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -58,6 +59,7 @@ struct InputState {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 struct Pose {
     x: f32,
     y: f32,
@@ -94,6 +96,9 @@ fn main() -> anyhow::Result<()> {
     println!("WASD move, Space/C up/down, mouse controls yaw/pitch.");
     println!("Publishing pose to {}", cli.pose_file.display());
 
+    println!("FlatVR prototype loop started. Press Esc to quit.");
+    println!("WASD move, Space/Ctrl up/down, mouse controls yaw/pitch.");
+
     loop {
         while event::poll(Duration::from_millis(1))? {
             match event::read()? {
@@ -126,6 +131,36 @@ fn main() -> anyhow::Result<()> {
                     }
                     _ => {}
                 },
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    match key.code {
+                        KeyCode::Char('w') => input.forward = true,
+                        KeyCode::Char('s') => input.back = true,
+                        KeyCode::Char('a') => input.left = true,
+                        KeyCode::Char('d') => input.right = true,
+                        KeyCode::Char(' ') => input.up = true,
+                        KeyCode::Char('c') => input.down = true,
+                        KeyCode::Esc => return Ok(()),
+                        _ => {}
+                    }
+                }
+                Event::Key(key) if key.kind == KeyEventKind::Release => {
+                    match key.code {
+                        KeyCode::Char('w') => input.forward = false,
+                        KeyCode::Char('s') => input.back = false,
+                        KeyCode::Char('a') => input.left = false,
+                        KeyCode::Char('d') => input.right = false,
+                        KeyCode::Char(' ') => input.up = false,
+                        KeyCode::Char('c') => input.down = false,
+                        _ => {}
+                    }
+                }
+                Event::Mouse(mouse) => {
+                    if let MouseEventKind::Moved = mouse.kind {
+                        pose.yaw += mouse.column as f32 * config.mouse_sensitivity_yaw;
+                        pose.pitch = (pose.pitch - mouse.row as f32 * config.mouse_sensitivity_pitch)
+                            .clamp(-1.4, 1.4);
+                    }
+                }
                 _ => {}
             }
         }
@@ -217,6 +252,15 @@ impl PosePublisher {
         }
         self.map[..packet.len()].copy_from_slice(&packet);
         self.map[packet.len()..].fill(0);
+        Ok(Self { map })
+    }
+
+    fn publish(&mut self, pose: Pose) -> anyhow::Result<()> {
+        let bytes = serde_json::to_vec(&pose)?;
+        let copy_len = bytes.len().min(self.map.len() - 1);
+        self.map[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        self.map[copy_len] = b'\n';
+        self.map[copy_len + 1..].fill(0);
         self.map.flush()?;
         Ok(())
     }
