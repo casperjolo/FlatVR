@@ -36,6 +36,16 @@ Optional config file:
 cargo run -- --config flatvr.json
 ```
 
+## Next implementation steps
+See `docs/architecture.md` for the roadmap.
+
+
+Inspect mmap output:
+```bash
+cargo run --bin read_pose -- /tmp/flatvr_pose.bin
+```
+
+The mmap packet is a fixed binary protocol with magic (`FLATVR01`), version, sequence, timestamp, then pose floats.
 Example `flatvr.json`:
 ```json
 {

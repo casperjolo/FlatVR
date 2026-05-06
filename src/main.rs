@@ -9,6 +9,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
 use memmap2::MmapMut;
 use serde::{Deserialize, Serialize};
 
+mod protocol;
+use protocol::PosePacket;
+
 #[derive(Parser, Debug)]
 #[command(name = "flatvr")]
 #[command(about = "Flat-screen OpenXR/SteamVR control prototype")]
@@ -222,6 +225,7 @@ fn load_config(path: Option<PathBuf>) -> anyhow::Result<Config> {
 
 struct PosePublisher {
     map: MmapMut,
+    sequence: u64,
 }
 
 impl PosePublisher {
@@ -237,6 +241,17 @@ impl PosePublisher {
         file.set_len(file_len)?;
 
         let map = unsafe { MmapMut::map_mut(&file).context("failed to map pose file")? };
+        Ok(Self { map, sequence: 0 })
+    }
+
+    fn publish(&mut self, pose: Pose) -> anyhow::Result<()> {
+        self.sequence = self.sequence.wrapping_add(1);
+        let packet = PosePacket::new(self.sequence, pose).encode();
+        if packet.len() > self.map.len() {
+            anyhow::bail!("pose packet too large for mmap region");
+        }
+        self.map[..packet.len()].copy_from_slice(&packet);
+        self.map[packet.len()..].fill(0);
         Ok(Self { map })
     }
 
