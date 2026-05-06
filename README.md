@@ -9,6 +9,9 @@ Current prototype supports:
 - Mouse/keyboard-driven virtual HMD + locomotion simulation.
 - JSON pose output in stdout.
 - Pose publishing to a local mmap-backed file (`/tmp/flatvr_pose.bin`) for bridge consumers.
+- Mouse-driven virtual HMD yaw/pitch.
+- Keyboard locomotion (WASD + Space/C).
+- JSON pose output at configurable tick-rate.
 
 This is the foundation for an OpenXR/SteamVR bridge layer that will make games think a headset is present.
 
@@ -31,6 +34,16 @@ cargo run -- --pose-file /tmp/flatvr_pose.bin
 Optional config file:
 ```bash
 cargo run -- --config flatvr.json
+```
+
+Example `flatvr.json`:
+```json
+{
+  "mouse_sensitivity_yaw": 0.003,
+  "mouse_sensitivity_pitch": 0.002,
+  "keyboard_speed_mps": 2.5,
+  "keyboard_vertical_speed_mps": 1.5
+}
 ```
 
 ## Next implementation steps
